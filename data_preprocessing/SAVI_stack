@@ -1,0 +1,92 @@
+# code to generate Sen_2 image folder into Soil Adjusted Vegetation Index (SAVI) rasters
+import rsgislib
+from rsgislib import imagecalc
+import glob
+from osgeo import gdal
+from osgeo import gdalnumeric
+import numpy as np
+from rsgislib import imageutils
+import os
+import rsgislib.imagecalc.calcindices
+import rsgislib.imageutils
+import rsgislib.rastergis
+import os.path
+from osgeo.gdalnumeric import *
+from osgeo.gdalconst import *
+
+m_root='INSERT FOLDER PATH'
+
+#Path to the folder that contains the Sentinel-2 images
+ImagesPath= m_root+'INSERT ROOT FOLDER'
+
+#Path to Outputs folder
+OutputsFolder=m_root+'INSERT OUTPUT FOLDER'
+
+#Define geotiff as the file format
+fileformat = "GTIFF"
+driver = gdal.GetDriverByName(fileformat)
+
+#Set the wildcard to retrieve all images with the same ending
+Wildcard='*.tif'
+
+#Create a list of all images with ending defined in the Wildcard variable
+image_list = glob.glob(ImagesPath+Wildcard)
+
+#Define the band numbers you will use to estimate SAVI
+RedBandNumber=3
+NIRBandNumber=8
+
+
+#Loop to go through all the images with the same wildcard (standardised reflectance images)
+for Image in image_list:
+
+	#Open Sentinel-2 image with the gdal
+	Stack_Image = gdal.Open(Image)
+
+	#Retrieve properties of Sentinel-2 image to create a new image with the same properties
+	GeoT = Stack_Image.GetGeoTransform()
+	SRS = Stack_Image.GetProjection()
+	xSize, ySize = Stack_Image.RasterXSize, Stack_Image.RasterYSize
+
+
+	#Create SAVI image with the same properties as the original Sentinel-2 image
+
+	nombre_base_imagen=str(Image).replace(ImagesPath, "").replace("[", "").replace("]", "").replace(".tif", "").replace("'", "")
+	print("[Processing SAVI for: ]", nombre_base_imagen, " ..." )
+
+        #Define the SAVI image name by modifying the name of the initial Sentinel-2 image
+	SAVIImage = OutputsFolder+nombre_base_imagen.replace('.tif', "")+'_SAVI'+'.tif'
+
+        #Create SAVI image with the same properties as the original Sentinel-2 image, but only with 1 band
+	SAVI_Raster = driver.Create(SAVIImage, xSize, ySize, 1, GDT_Float64)
+	SAVI_Raster.SetProjection(SRS)
+	SAVI_Raster.SetGeoTransform(GeoT) 
+
+
+	#Get the band you will overwrite
+	SAVIBand = SAVI_Raster.GetRasterBand(1)
+	
+
+	#Create empty array where you will store the SAVI values that will be written in the final SAVI image
+	OutputArray= np.empty_like(Stack_Image, dtype=np.float64)
+
+
+	Red_Array = Stack_Image.GetRasterBand(RedBandNumber).ReadAsArray()
+	NIR_Array = Stack_Image.GetRasterBand(NIRBandNumber).ReadAsArray()
+
+	#Change type of arrray so the output includes negative values
+
+	Red_Array=Red_Array.astype(float)
+	NIR_Array=NIR_Array.astype(float)
+
+	#Calculating the SAVI
+	OutputArray=((((NIR_Array/1000)-(Red_Array)/1000)/((NIR_Array/1000)+(Red_Array/1000)+0.428))*1.428)
+
+        #Convert null values into -99
+	OutputArray = np.where(np.isfinite(OutputArray),OutputArray,-99)
+
+	#Writing the array in the band
+	SAVIBand.WriteArray(OutputArray)
+
+
+	del SAVIImage, Stack_Image, SAVI_Raster
