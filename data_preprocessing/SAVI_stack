@@ -80,7 +80,7 @@ for Image in image_list:
 	NIR_Array=NIR_Array.astype(float)
 
 	#Calculating the SAVI
-	OutputArray=((((NIR_Array/1000)-(Red_Array)/1000)/((NIR_Array/1000)+(Red_Array/1000)+0.428))*1.428)
+	OutputArray=((((NIR_Array/1000)-(Red_Array)/1000)/((NIR_Array/1000)+(Red_Array/1000)+0.5))*1.5)
 
         #Convert null values into -99
 	OutputArray = np.where(np.isfinite(OutputArray),OutputArray,-99)
